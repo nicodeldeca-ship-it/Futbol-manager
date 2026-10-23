@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FutbolManager Pro</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: system-ui, -apple-system, sans-serif; }
+        body { background-color: #0b0f19; color: #f3f4f6; padding: 12px; }
+        .header { background: #111827; border: 1px solid #1f2937; padding: 14px; border-radius: 12px; margin-bottom: 12px; display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px; }
+        .title { font-size: 18px; font-weight: bold; color: #fff; }
+        .title span { color: #10b981; }
+        .btn { background: #10b981; color: #000; font-weight: bold; padding: 8px 14px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; }
+        .btn:active { opacity: 0.8; }
+        .btn-sec { background: #1f2937; color: #ccc; border: 1px solid #374151; }
+        .btn-danger { background: #7f1d1d; color: #fca5a5; }
+        .btn-edit { background: #1e3a8a; color: #93c5fd; }
+        .input { background: #1f2937; border: 1px solid #374151; color: #fff; padding: 8px 10px; border-radius: 8px; width: 100%; font-size: 13px; }
+        .grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
+        @media(min-width: 768px) { .grid { grid-template-columns: 300px 1fr; } }
+        .card { background: #111827; border: 1px solid #1f2937; border-radius: 12px; padding: 12px; }
+        .club-item { padding: 10px; border: 1px solid #1f2937; border-radius: 8px; margin-bottom: 8px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: #1a2332; }
+        .club-item.active { border-color: #10b981; background: #064e3b; }
+        .player-card { background: #1f2937; border: 1px solid #374151; padding: 10px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .badge { background: #374151; color: #fff; font-size: 11px; padding: 2px 6px; border-radius: 4px; }
+        .badge-star { background: #854d0e; color: #fef08a; }
+        .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.85); display: none; align-items: center; justify-content: center; padding: 14px; z-index: 100; }
+        .modal.open { display: flex; }
+        .modal-content { background: #111827; border: 1px solid #374151; border-radius: 12px; padding: 16px; width: 100%; max-width: 450px; max-height: 90vh; overflow-y: auto; }
+        .form-group { margin-bottom: 10px; }
+        .form-group label { display: block; font-size: 11px; color: #9ca3af; margin-bottom: 4px; }
+        .img-thumb { width: 38px; height: 38px; border-radius: 6px; object-fit: cover; background: #374151; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 10px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; background: #182232; padding: 8px; border-radius: 8px; margin-bottom: 10px; border: 1px solid #2d3748; }
+    </style>
+<script defer data-domain="untitled-1-d3dc7b.tiiny.site" src="https://analytics.tiiny.net/js/plausible.js"></script><script type="text/javascript" src="https://tiiny.host/ad-script.js"></script></head>
+<body>
+
+    <div class="header">
+        <div class="title">FUTBOL<span>MANAGER</span></div>
+        <div style="display:flex; gap:6px;">
+            <button class="btn" onclick="openClubModal()">+ Nuevo Club</button>
+            <button class="btn btn-sec" onclick="exportDB()">💾 Backup</button>
+        </div>
+    </div>
+
+    <div style="margin-bottom:12px;">
+        <input type="text" id="searchInput" class="input" placeholder="🔍 Buscar equipo o jugador..." oninput="renderApp()">
+    </div>
+
+    <div class="grid">
+        <div class="card">
+            <h3 style="font-size:14px; margin-bottom:10px; color:#10b981;">🛡️ Mis Equipos</h3>
+            <div id="clubsList"></div>
+        </div>
+
+        <div class="card" id="clubDetail">
+            <p style="color:#6b7280; text-align:center; padding:20px;">Seleccioná un club para ver la plantilla.</p>
+        </div>
+    </div>
+
+    <!-- Modal Club -->
+    <div id="clubModal" class="modal">
+        <div class="modal-content">
+            <h3 style="margin-bottom:12px;" id="clubModalTitle">Crear Club</h3>
+            <form onsubmit="saveClub(event)">
+                <input type="hidden" id="clubId">
+                <div class="form-group"><label>Nombre del Club</label><input type="text" id="clubName" class="input" required></div>
+                <div class="form-group"><label>Siglas (ej: RMA)</label><input type="text" id="clubShort" class="input" maxlength="4" required></div>
+                <div class="form-group"><label>País</label><input type="text" id="clubCountry" class="input" required></div>
+                <div class="form-group">
+                    <label>Nivel de Liga</label>
+                    <select id="clubLevel" class="input">
+                        <option value="1">1: Élite Continental</option>
+                        <option value="2">2: Primera División</option>
+                        <option value="3">3: Segunda / Ascenso</option>
+                        <option value="4">4: Amateur / Regional</option>
+                    </select>
+                </div>
+                <div class="form-group"><label>Escudo (Imagen Local)</label><input type="file" id="clubShield" accept="image/*" class="input"></div>
+                <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
+                    <button type="button" class="btn btn-sec" onclick="closeModals()">Cancelar</button>
+                    <button type="submit" class="btn">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal Jugador Avanzado -->
+    <div id="playerModal" class="modal">
+        <div class="modal-content">
+            <h3 style="margin-bottom:12px;" id="playerModalTitle">Jugador</h3>
+            <form onsubmit="savePlayer(event)">
+                <input type="hidden" id="playerId">
+                <div class="form-group"><label>Nombre / Apodo</label><input type="text" id="pName" class="input" required></div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+                    <div class="form-group"><label>Posición</label>
+                        <select id="pPos" class="input" onchange="renderDynamicStatsInputs()">
+                            <option value="POR">Arquero (POR)</option>
+                            <option value="DEF">Defensor (DEF)</option>
+                            <option value="MC">Mediocampista (MC)</option>
+                            <option value="DEL">Delantero (DEL)</option>
+                        </select>
+                    </div>
+                    <div class="form-group"><label>Dorsal (#)</label><input type="number" id="pNum" class="input"></div>
+                </div>
+                <div class="form-group"><label>Estatus</label>
+                    <select id="pStatus" class="input">
+                        <option value="estrella">🌟 Estrella</option>
+                        <option value="titular" selected>⚽ Titular</option>
+                        <option value="rotacion">🔄 Rotación</option>
+                        <option value="promesa">🌱 Promesa</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Media Custom (Opcional)</label>
+                    <input type="number" id="pRating" class="input" placeholder="Vacío = Auto por estadísticas">
+                </div>
+                
+                <!-- Campos dinámicos de Estadísticas -->
+                <label style="font-size:11px; color:#10b981; font-weight:bold; display:block; margin-bottom:4px;">📊 Estadísticas Avanzadas</label>
+                <div class="stats-grid" id="dynamicStatsContainer"></div>
+
+                <div class="form-group"><label>Foto (Imagen Local)</label><input type="file" id="pPhoto" accept="image/*" class="input"></div>
+                <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px;">
+                    <button type="button" class="btn btn-sec" onclick="closeModals()">Cancelar</button>
+                    <button type="submit" class="btn">Guardar Jugador</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const initialDB = {
+            clubs: [{
+                id: 'c1', name: 'Real Madrid', short: 'RMA', country: 'España', level: '1', shield: '',
+                players: [
+                    { id: 'p1', name: 'Courtois', pos: 'POR', num: 1, status: 'estrella', rating: 89, stats: { pj: 10, vi: 6, gr: 5, pa: 1 }, photo: '' }
+                ]
+            }]
+        };
+
+        let db = JSON.parse(localStorage.getItem('fm_db_v7')) || initialDB;
+        let selectedClubId = db.clubs[0] ? db.clubs[0].id : null;
+
+        function saveDB() { localStorage.setItem('fm_db_v7', JSON.stringify(db)); renderApp(); }
+
+        function compressImg(file, cb) {
+            if (!file) return cb('');
+            const r = new FileReader();
+            r.onload = e => {
+                const img = new Image();
+                img.onload = () => {
+                    const c = document.createElement('canvas');
+                    c.width = 150; c.height = 150;
+                    c.getContext('2d').drawImage(img, 0, 0, 150, 150);
+                    cb(c.toDataURL('image/png', 0.7));
+                };
+                img.src = e.target.result;
+            };
+            r.readAsDataURL(file);
+        }
+
+        // Generador de inputs según puesto
+        function renderDynamicStatsInputs(savedStats = {}) {
+            const pos = document.getElementById('pPos').value;
+            const container = document.getElementById('dynamicStatsContainer');
+            
+            let html = `<div class="form-group"><label>Partidos (PJ)</label><input type="number" id="st_pj" value="${savedStats.pj || 0}" class="input"></div>`;
+
+            if (pos === 'POR') {
+                html += `
+                    <div class="form-group"><label>Vallas Inv. (VI)</label><input type="number" id="st_vi" value="${savedStats.vi || 0}" class="input"></div>
+                    <div class="form-group"><label>Goles Rec. (GR)</label><input type="number" id="st_gr" value="${savedStats.gr || 0}" class="input"></div>
+                    <div class="form-group"><label>Penales At. (PA)</label><input type="number" id="st_pa" value="${savedStats.pa || 0}" class="input"></div>
+                `;
+            } else if (pos === 'DEF') {
+                html += `
+                    <div class="form-group"><label>Vallas Inv. (VI)</label><input type="number" id="st_vi" value="${savedStats.vi || 0}" class="input"></div>
+                    <div class="form-group"><label>Intercepc./Quites</label><input type="number" id="st_iq" value="${savedStats.iq || 0}" class="input"></div>
+                    <div class="form-group"><label>Goles</label><input type="number" id="st_g" value="${savedStats.g || 0}" class="input"></div>
+                    <div class="form-group"><label>Rojas Directas</label><input type="number" id="st_tr" value="${savedStats.tr || 0}" class="input"></div>
+                `;
+            } else if (pos === 'MC') {
+                html += `
+                    <div class="form-group"><label>Asistencias</label><input type="number" id="st_a" value="${savedStats.a || 0}" class="input"></div>
+                    <div class="form-group"><label>Pases Clave</label><input type="number" id="st_pc" value="${savedStats.pc || 0}" class="input"></div>
+                    <div class="form-group"><label>Recuperaciones</label><input type="number" id="st_rec" value="${savedStats.rec || 0}" class="input"></div>
+                    <div class="form-group"><label>Goles</label><input type="number" id="st_g" value="${savedStats.g || 0}" class="input"></div>
+                `;
+            } else if (pos === 'DEL') {
+                html += `
+                    <div class="form-group"><label>Goles</label><input type="number" id="st_g" value="${savedStats.g || 0}" class="input"></div>
+                    <div class="form-group"><label>Asistencias</label><input type="number" id="st_a" value="${savedStats.a || 0}" class="input"></div>
+                    <div class="form-group"><label>Tiros al Arco</label><input type="number" id="st_ta" value="${savedStats.ta || 0}" class="input"></div>
+                `;
+            }
+
+            container.innerHTML = html;
+        }
+
+        // Algoritmo Matemático de Calificación Inteligente
+        function calculateAdvancedRating(clubLevel, pos, status, s) {
+            let base = clubLevel === '1' ? 82 : clubLevel === '2' ? 74 : clubLevel === '3' ? 66 : 58;
+            
+            if (status === 'estrella') base += 5;
+            else if (status === 'titular') base += 1;
+            else if (status === 'rotacion') base -= 3;
+            else if (status === 'promesa') base -= 5;
+
+            const pj = Number(s.pj) || 0;
+            if (pj < 3) return Math.min(99, Math.max(45, base)); // Poca muestra de partidos
+
+            let score = base;
+
+            if (pos === 'POR') {
+                const ratioVI = (Number(s.vi) || 0) / pj; // Porcentaje Vallas Invictas
+                const ratioGR = (Number(s.gr) || 0) / pj; // Goles Recibidos por Partido
+                const pa = Number(s.pa) || 0;
+
+                if (ratioVI >= 0.5) score += 5;
+                else if (ratioVI < 0.2) score -= 4;
+
+                if (ratioGR <= 0.8) score += 4;
+                else if (ratioGR >= 1.8) score -= 5;
+
+                score += Math.min(3, pa * 1.5); // Bonus por penales atajados
+
+            } else if (pos === 'DEF') {
+                const ratioVI = (Number(s.vi) || 0) / pj;
+                const ratioIQ = (Number(s.iq) || 0) / pj; // Quites por partido
+                const tr = Number(s.tr) || 0;
+
+                if (ratioVI >= 0.45) score += 4;
+                else if (ratioVI < 0.15) score -= 4;
+
+                if (ratioIQ >= 3.0) score += 4;
+                else if (ratioIQ < 1.0) score -= 2;
+
+                score -= (tr * 2); // Penalización por expulsiones
+
+            } else if (pos === 'MC') {
+                const ratioCreacion = ((Number(s.a) || 0) + (Number(s.pc) || 0)) / pj;
+                const ratioRec = (Number(s.rec) || 0) / pj;
+
+                if (ratioCreacion >= 1.2) score += 5;
+                else if (ratioCreacion < 0.3) score -= 3;
+
+                if (ratioRec >= 3.0) score += 3;
+
+            } else if (pos === 'DEL') {
+                const ratioGoles = (Number(s.g) || 0) / pj;
+                const ratioTiros = (Number(s.ta) || 0) / pj;
+                const g = Number(s.g) || 0;
+                const ta = Number(s.ta) || 0;
+
+                if (ratioGoles >= 0.75) score += 6;
+                else if (ratioGoles >= 0.45) score += 3;
+                else if (ratioGoles < 0.15) score -= 5;
+
+                // Efectividad de tiro
+                if (ta > 0 && (g / ta) >= 0.3) score += 3; 
+            }
+
+            return Math.min(99, Math.max(45, Math.round(score)));
+        }
+
+        function renderApp() {
+            const q = document.getElementById('searchInput').value.toLowerCase();
+            const list = document.getElementById('clubsList');
+            list.innerHTML = '';
+
+            db.clubs.filter(c => c.name.toLowerCase().includes(q) || c.players.some(p => p.name.toLowerCase().includes(q)))
+            .forEach(c => {
+                const active = c.id === selectedClubId ? 'active' : '';
+                list.innerHTML += `
+                    <div class="club-item ${active}" onclick="selectedClubId='${c.id}'; renderApp();">
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            ${c.shield ? `<img src="${c.shield}" class="img-thumb">` : `<div class="img-thumb">🛡️</div>`}
+                            <div>
+                                <strong style="font-size:13px; color:#fff;">${c.name}</strong>
+                                <div style="font-size:10px; color:#9ca3af;">${c.country} • Nivel ${c.level}</div>
+                            </div>
+                        </div>
+                        <span class="badge">${c.players.length} jug</span>
+                    </div>`;
+            });
+
+            renderDetail();
+        }
+
+        function renderDetail() {
+            const container = document.getElementById('clubDetail');
+            const club = db.clubs.find(c => c.id === selectedClubId);
+            if (!club) { container.innerHTML = '<p style="color:#6b7280; text-align:center;">Ningún club seleccionado.</p>'; return; }
+
+            let html = `
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid #1f2937; padding-bottom:10px;">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        ${club.shield ? `<img src="${club.shield}" class="img-thumb" style="width:48px; height:48px;">` : `<div class="img-thumb" style="width:48px; height:48px; font-size:20px;">🛡️</div>`}
+                        <div>
+                            <h2 style="font-size:16px;">${club.name} (${club.short})</h2>
+                            <p style="font-size:11px; color:#9ca3af;">${club.country} • Liga Nivel ${club.level}</p>
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:4px;">
+                        <button class="btn btn-edit" style="font-size:11px; padding:4px 8px;" onclick="openClubModal('${club.id}')">✏️ Editar</button>
+                        <button class="btn btn-danger" style="font-size:11px; padding:4px 8px;" onclick="deleteClub('${club.id}')">Borrar</button>
+                    </div>
+                </div>
+
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <strong style="font-size:13px;">Plantilla de Jugadores</strong>
+                    <button class="btn" style="font-size:11px; padding:4px 10px;" onclick="openPlayerModal()">+ Jugador</button>
+                </div>
+            `;
+
+            if (club.players.length === 0) {
+                html += '<p style="color:#6b7280; font-size:12px;">No hay jugadores en la plantilla.</p>';
+            } else {
+                club.players.forEach(p => {
+                    const s = p.stats || {};
+                    let summaryText = `PJ: ${s.pj || 0}`;
+                    if (p.pos === 'POR') summaryText += ` | VI: ${s.vi||0} | GR: ${s.gr||0}`;
+                    else if (p.pos === 'DEF') summaryText += ` | VI: ${s.vi||0} | IQ: ${s.iq||0}`;
+                    else if (p.pos === 'MC') summaryText += ` | A: ${s.a||0} | PC: ${s.pc||0}`;
+                    else if (p.pos === 'DEL') summaryText += ` | G: ${s.g||0} | A: ${s.a||0}`;
+
+                    html += `
+                        <div class="player-card">
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                ${p.photo ? `<img src="${p.photo}" class="img-thumb">` : `<div class="img-thumb">👤</div>`}
+                                <div>
+                                    <strong style="font-size:13px; color:#fff;">#${p.num || '-'} ${p.name}</strong>
+                                    <div style="font-size:10px; color:#9ca3af;">${p.pos} • ${summaryText}</div>
+                                </div>
+                            </div>
+                            <div style="text-align:right;">
+                                <span class="badge ${p.status === 'estrella' ? 'badge-star' : ''}">${p.status.toUpperCase()}</span>
+                                <div style="font-weight:bold; font-size:14px; color:#10b981; margin-top:2px;">${p.rating}</div>
+                                <div style="margin-top:4px; display:flex; gap:4px; justify-content:flex-end;">
+                                    <button style="background:none; border:none; color:#93c5fd; font-size:10px; cursor:pointer;" onclick="openPlayerModal('${p.id}')">✏️ Editar</button>
+                                    <button style="background:none; border:none; color:#ef4444; font-size:10px; cursor:pointer;" onclick="deletePlayer('${p.id}')">Eliminar</button>
+                                </div>
+                            </div>
+                        </div>`;
+                });
+            }
+
+            container.innerHTML = html;
+        }
+
+        function openClubModal(clubId = null) {
+            document.getElementById('clubModal').classList.add('open');
+            if (clubId) {
+                const c = db.clubs.find(item => item.id === clubId);
+                document.getElementById('clubModalTitle').innerText = "Editar Club";
+                document.getElementById('clubId').value = c.id;
+                document.getElementById('clubName').value = c.name;
+                document.getElementById('clubShort').value = c.short;
+                document.getElementById('clubCountry').value = c.country;
+                document.getElementById('clubLevel').value = c.level;
+            } else {
+                document.getElementById('clubModalTitle').innerText = "Crear Club";
+                document.getElementById('clubId').value = '';
+                document.getElementById('clubName').value = '';
+                document.getElementById('clubShort').value = '';
+                document.getElementById('clubCountry').value = '';
+            }
+        }
+
+        function openPlayerModal(playerId = null) {
+            document.getElementById('playerModal').classList.add('open');
+            if (playerId) {
+                const club = db.clubs.find(c => c.id === selectedClubId);
+                const p = club.players.find(item => item.id === playerId);
+                document.getElementById('playerModalTitle').innerText = "Editar Jugador";
+                document.getElementById('playerId').value = p.id;
+                document.getElementById('pName').value = p.name;
+                document.getElementById('pPos').value = p.pos;
+                document.getElementById('pNum').value = p.num;
+                document.getElementById('pStatus').value = p.status;
+                document.getElementById('pRating').value = ''; 
+                renderDynamicStatsInputs(p.stats || {});
+            } else {
+                document.getElementById('playerModalTitle').innerText = "Agregar Jugador";
+                document.getElementById('playerId').value = '';
+                document.getElementById('pName').value = '';
+                document.getElementById('pNum').value = '';
+                document.getElementById('pRating').value = '';
+                renderDynamicStatsInputs();
+            }
+        }
+
+        function closeModals() { document.querySelectorAll('.modal').forEach(m => m.classList.remove('open')); }
+
+        function getFormStats() {
+            return {
+                pj: document.getElementById('st_pj') ? document.getElementById('st_pj').value : 0,
+                vi: document.getElementById('st_vi') ? document.getElementById('st_vi').value : 0,
+                gr: document.getElementById('st_gr') ? document.getElementById('st_gr').value : 0,
+                pa: document.getElementById('st_pa') ? document.getElementById('st_pa').value : 0,
+                iq: document.getElementById('st_iq') ? document.getElementById('st_iq').value : 0,
+                tr: document.getElementById('st_tr') ? document.getElementById('st_tr').value : 0,
+                g: document.getElementById('st_g') ? document.getElementById('st_g').value : 0,
+                a: document.getElementById('st_a') ? document.getElementById('st_a').value : 0,
+                pc: document.getElementById('st_pc') ? document.getElementById('st_pc').value : 0,
+                rec: document.getElementById('st_rec') ? document.getElementById('st_rec').value : 0,
+                ta: document.getElementById('st_ta') ? document.getElementById('st_ta').value : 0,
+            };
+        }
+
+        function saveClub(e) {
+            e.preventDefault();
+            const id = document.getElementById('clubId').value;
+            const name = document.getElementById('clubName').value;
+            const short = document.getElementById('clubShort').value.toUpperCase();
+            const country = document.getElementById('clubCountry').value;
+            const level = document.getElementById('clubLevel').value;
+            const file = document.getElementById('clubShield').files[0];
+
+            compressImg(file, shield => {
+                if (id) {
+                    const c = db.clubs.find(item => item.id === id);
+                    c.name = name; c.short = short; c.country = country; c.level = level;
+                    if (shield) c.shield = shield;
+                    
+                    c.players.forEach(p => {
+                        p.rating = calculateAdvancedRating(c.level, p.pos, p.status, p.stats || {});
+                    });
+                } else {
+                    const newClub = { id: 'c_' + Date.now(), name, short, country, level, shield, players: [] };
+                    db.clubs.push(newClub);
+                    selectedClubId = newClub.id;
+                }
+                saveDB();
+                closeModals();
+            });
+        }
+
+        function savePlayer(e) {
+            e.preventDefault();
+            const club = db.clubs.find(c => c.id === selectedClubId);
+            if (!club) return;
+
+            const pid = document.getElementById('playerId').value;
+            const name = document.getElementById('pName').value;
+            const pos = document.getElementById('pPos').value;
+            const num = document.getElementById('pNum').value;
+            const status = document.getElementById('pStatus').value;
+            const stats = getFormStats();
+            let rating = document.getElementById('pRating').value;
+
+            if (!rating || rating === '') {
+                rating = calculateAdvancedRating(club.level, pos, status, stats);
+            }
+
+            const file = document.getElementById('pPhoto').files[0];
+
+            compressImg(file, photo => {
+                if (pid) {
+                    const p = club.players.find(item => item.id === pid);
+                    p.name = name; p.pos = pos; p.num = num; p.status = status;
+                    p.rating = rating; p.stats = stats;
+                    if (photo) p.photo = photo;
+                } else {
+                    club.players.push({ id: 'p_' + Date.now(), name, pos, num, status, rating, stats, photo });
+                }
+                saveDB();
+                closeModals();
+            });
+        }
+
+        function deleteClub(id) {
+            if (confirm("¿Borrar club?")) {
+                db.clubs = db.clubs.filter(c => c.id !== id);
+                selectedClubId = db.clubs[0] ? db.clubs[0].id : null;
+                saveDB();
+            }
+        }
+
+        function deletePlayer(pid) {
+            const club = db.clubs.find(c => c.id === selectedClubId);
+            if (club && confirm("¿Eliminar jugador?")) {
+                club.players = club.players.filter(p => p.id !== pid);
+                saveDB();
+            }
+        }
+
+        function exportDB() {
+            const blob = new Blob([JSON.stringify(db)], {type: 'application/json'});
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'futbol_manager_backup.json';
+            a.click();
+        }
+
+        renderApp();
+    </script>
+</body>
+</html>
